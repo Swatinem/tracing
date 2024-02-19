@@ -421,7 +421,7 @@ impl<'a> FormatFields<'a> for JsonFields {
 ///
 /// [visitor]: crate::field::Visit
 /// [`MakeVisitor`]: crate::field::MakeVisitor
-pub struct JsonVisitor<'a> {
+pub struct JsonVisitor<'a> {debug_buf: String,
     values: BTreeMap<&'a str, serde_json::Value>,
     writer: &'a mut dyn Write,
 }
@@ -440,7 +440,7 @@ impl<'a> JsonVisitor<'a> {
     /// - `is_empty`: whether or not any fields have been previously written to
     ///   that writer.
     pub fn new(writer: &'a mut dyn Write) -> Self {
-        Self {
+        Self {debug_buf: String::new(),
             values: BTreeMap::new(),
             writer,
         }
@@ -525,18 +525,14 @@ impl<'a> field::Visit for JsonVisitor<'a> {
             .insert(field.name(), serde_json::Value::from(value));
     }
 
-    fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
-        match field.name() {
+    fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {self.debug_buf.reserve(128);let name = fields.name();let name = name.strip_prefix("r#").unwrap_or(name);
+        match name {
             // Skip fields that are actually log metadata that have already been handled
             #[cfg(feature = "tracing-log")]
             name if name.starts_with("log.") => (),
-            name if name.starts_with("r#") => {
+            name => {let _ = write!(&mut self.debug_buf, "{value:?}");
                 self.values
-                    .insert(&name[2..], serde_json::Value::from(format!("{:?}", value)));
-            }
-            name => {
-                self.values
-                    .insert(name, serde_json::Value::from(format!("{:?}", value)));
+                    .insert(name, serde_json::Value::from(&self.debug_buf));self.debug_buf.clear();
             }
         };
     }
